@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, TypeFamilies, ScopedTypeVariables, FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances, TypeFamilies, ScopedTypeVariables, FlexibleContexts, OverloadedStrings #-}
 
 module Database.RethinkDB.Typed where
 
@@ -152,15 +152,21 @@ filter = coerce (R.filter :: (ReQL -> ReQL) -> ReQL -> ReQL)
 
 innerJoin :: (Sequence s, Sequence s') =>
               (Expr a -> Expr b -> Expr Bool) ->
-              Expr (s a) -> Expr (s' b) -> Expr (StreamArray s Object)
+              Expr (s a) -> Expr (s' b) -> Expr (StreamArray s ( a, b ))
 innerJoin = coerce (R.innerJoin :: (ReQL -> ReQL -> ReQL) -> ReQL -> ReQL -> ReQL)
 
 outerJoin :: (Sequence s, Sequence s') =>
               (Expr a -> Expr b -> Expr Bool) ->
-              Expr (s a) -> Expr (s' b) -> Expr (StreamArray s Object)
+              Expr (s a) -> Expr (s' b) -> Expr (StreamArray s ( a, b ))
 outerJoin = coerce (R.outerJoin :: (ReQL -> ReQL -> ReQL) -> ReQL -> ReQL -> ReQL)
 
-zip :: Sequence s => Expr (s Object) -> Expr (StreamArray s Object)
+left :: Expr ( a, b ) -> Expr a
+left = spec1 (R.! "left")
+
+right :: Expr ( a, b ) -> Expr b
+right = spec1 (R.! "right")
+
+zip :: Sequence s => Expr (s ( Object, Object )) -> Expr (StreamArray s Object)
 zip = spec1 R.zip
 
 -- Transformations
@@ -372,6 +378,7 @@ type instance ResultOf Object = Object
 type instance ResultOf Bool = Bool
 type instance ResultOf Database.RethinkDB.Typed.String = Database.RethinkDB.Typed.String
 type instance ResultOf Time = Time
+type instance ResultOf ( a, b ) = Object
 
 instance IsString (Expr Database.RethinkDB.Typed.String) where
   fromString = Expr . R.expr
