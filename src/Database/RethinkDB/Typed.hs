@@ -13,6 +13,8 @@ import Data.String
 import Data.Text (Text)
 import Data.Time
 
+-- Primitives
+
 data Stream a
 data Selection a
 data Table a
@@ -26,6 +28,11 @@ instance Sequence Stream where
 instance Sequence Selection where
 instance Sequence Table where
 
+-- Given an array, return an array, otherwise return a stream.
+type family StreamArray s where
+  StreamArray Array = Array
+  StreamArray s = Stream
+
 newtype Expr a = Expr { unExpr :: ReQL }
 
 type Datum = R.Datum
@@ -34,7 +41,7 @@ type Number = Double
 type Time = ZonedTime
 type String = Text
 
-type instance BooleanOf (Expr a) = Expr Bool
+
 
 -- Specialize the type of a unary ReQL function.
 spec1 :: (ReQL -> ReQL) -> Expr a -> Expr b
@@ -43,47 +50,6 @@ spec1 = coerce
 -- Specialize the type of a binary ReQL function.
 spec2 :: (ReQL -> ReQL -> ReQL) -> Expr a -> Expr b -> Expr c
 spec2 = coerce
-
-instance Num (Expr Number) where
-  (+) = spec2 (R.+)
-  (-) = spec2 (R.-)
-  (*) = spec2 (R.*)
-  abs x = ifB (x >=* 0) x (-x)
-  signum x
-    = ifB (x >* 0) 1
-        (ifB (x ==* 0) 0 (-1))
-  fromInteger = Expr . R.expr
-
-mod :: Expr Number -> Expr Number -> Expr Number
-mod = spec2 R.mod
-
-instance Fractional (Expr Number) where
-  (/) = spec2 (R./)
-  fromRational = Expr . R.expr
-
-instance Boolean (Expr Bool) where
-  true = Expr $ R.expr True
-  false = Expr $ R.expr False
-  notB = spec1 R.not
-  (&&*) = spec2 (R.&&)
-  (||*) = spec2 (R.||)
-
-instance EqB (Expr a) where
-  (==*) = spec2 (R.==)
-
-instance OrdB (Expr a) where
-  (<*) = spec2 (R.<)
-  (>=*) = spec2 (R.>=)
-  (>*) = spec2 (R.>)
-  (<=*) = spec2 (R.<=)
-
-instance IfB (Expr a) where
-  ifB = coerce (R.branch :: ReQL -> ReQL -> ReQL -> ReQL)
-
--- Given an array, return an array, otherwise return a stream.
-type family StreamArray s where
-  StreamArray Array = Array
-  StreamArray s = Stream
 
 -- Manipulating databases
 dbCreate :: Text -> Expr Object
@@ -203,9 +169,6 @@ sample = spec2 R.sample
 reduce :: Sequence s => (Expr a -> Expr a -> Expr a) -> Expr (s a) -> Expr a
 reduce = coerce (R.reduce :: (ReQL -> ReQL -> ReQL) -> ReQL -> ReQL)
 
-forEach :: Sequence s => (Expr a -> Expr write) -> Expr (s a) -> Expr Object
-forEach = coerce (R.forEach :: (ReQL -> ReQL) -> ReQL -> ReQL)
-
 count :: Sequence s => Expr (s a) -> Expr Number
 count = spec1 R.count
 
@@ -299,6 +262,41 @@ match :: Expr Database.RethinkDB.Typed.String -> Expr Database.RethinkDB.Typed.S
 match = spec2 R.match
 
 -- Math and logic
+instance Num (Expr Number) where
+  (+) = spec2 (R.+)
+  (-) = spec2 (R.-)
+  (*) = spec2 (R.*)
+  abs x = ifB (x >=* 0) x (-x)
+  signum x
+    = ifB (x >* 0) 1
+        (ifB (x ==* 0) 0 (-1))
+  fromInteger = Expr . R.expr
+
+instance Fractional (Expr Number) where
+  (/) = spec2 (R./)
+  fromRational = Expr . R.expr
+
+mod :: Expr Number -> Expr Number -> Expr Number
+mod = spec2 R.mod
+
+type instance BooleanOf (Expr a) = Expr Bool
+
+instance Boolean (Expr Bool) where
+  true = Expr $ R.expr True
+  false = Expr $ R.expr False
+  notB = spec1 R.not
+  (&&*) = spec2 (R.&&)
+  (||*) = spec2 (R.||)
+
+instance EqB (Expr a) where
+  (==*) = spec2 (R.==)
+
+instance OrdB (Expr a) where
+  (<*) = spec2 (R.<)
+  (>=*) = spec2 (R.>=)
+  (>*) = spec2 (R.>)
+  (<=*) = spec2 (R.<=)
+
 random :: Expr Number
 random = coerce R.random
 
@@ -336,6 +334,20 @@ time bt
       (unExpr (minute bt))
       (unExpr (second bt))
       (unExpr (timezone bt))
+
+-- Control structures
+
+instance IfB (Expr a) where
+  ifB = coerce (R.branch :: ReQL -> ReQL -> ReQL -> ReQL)
+
+forEach :: Sequence s => (Expr a -> Expr write) -> Expr (s a) -> Expr Object
+forEach = coerce (R.forEach :: (ReQL -> ReQL) -> ReQL -> ReQL)
+
+range :: Expr Number -> Expr (Stream Number)
+range = spec1 R.range
+
+
+-- Type assertions
 
 -- Assert that this datum is an object.
 withObject :: Expr R.Datum -> Expr Object
