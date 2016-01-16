@@ -29,9 +29,9 @@ instance Sequence Selection where
 instance Sequence Table where
 
 -- Given an array, return an array, otherwise return a stream.
-type family StreamArray s where
-  StreamArray Array = Array
-  StreamArray s = Stream
+type family StreamOrArray s where
+  StreamOrArray Array = Array
+  StreamOrArray s = Stream
 
 newtype Expr a = Expr { unExpr :: ReQL }
 
@@ -40,8 +40,6 @@ type Object = R.Object
 type Number = Double
 type Time = ZonedTime
 type String = Text
-
-
 
 -- Specialize the type of a unary ReQL function.
 spec1 :: (ReQL -> ReQL) -> Expr a -> Expr b
@@ -121,12 +119,12 @@ filter = coerce (R.filter :: (ReQL -> ReQL) -> ReQL -> ReQL)
 
 innerJoin :: (Sequence s, Sequence s') =>
               (Expr a -> Expr b -> Expr Bool) ->
-              Expr (s a) -> Expr (s' b) -> Expr (StreamArray s ( a, b ))
+              Expr (s a) -> Expr (s' b) -> Expr (StreamOrArray s ( a, b ))
 innerJoin = coerce (R.innerJoin :: (ReQL -> ReQL -> ReQL) -> ReQL -> ReQL -> ReQL)
 
 outerJoin :: (Sequence s, Sequence s') =>
               (Expr a -> Expr b -> Expr Bool) ->
-              Expr (s a) -> Expr (s' b) -> Expr (StreamArray s ( a, b ))
+              Expr (s a) -> Expr (s' b) -> Expr (StreamOrArray s ( a, b ))
 outerJoin = coerce (R.outerJoin :: (ReQL -> ReQL -> ReQL) -> ReQL -> ReQL -> ReQL)
 
 left :: Expr ( a, b ) -> Expr a
@@ -135,37 +133,37 @@ left = spec1 (R.! "left")
 right :: Expr ( a, b ) -> Expr b
 right = spec1 (R.! "right")
 
-zip :: Sequence s => Expr (s ( Object, Object )) -> Expr (StreamArray s Object)
+zip :: Sequence s => Expr (s ( Object, Object )) -> Expr (StreamOrArray s Object)
 zip = spec1 R.zip
 
 -- Transformations
 
-map :: Sequence s => (Expr a -> Expr b) -> Expr (s a) -> Expr (StreamArray s b)
+map :: Sequence s => (Expr a -> Expr b) -> Expr (s a) -> Expr (StreamOrArray s b)
 map = coerce (R.map :: (ReQL -> ReQL) -> ReQL -> ReQL)
 
-withFields :: Sequence s => [ Expr Database.RethinkDB.Typed.String ] -> Expr (s Object) -> Expr (StreamArray s Object)
+withFields :: Sequence s => [ Expr Database.RethinkDB.Typed.String ] -> Expr (s Object) -> Expr (StreamOrArray s Object)
 withFields = coerce (R.withFields :: [ ReQL ] -> ReQL -> ReQL)
 
-concatMap :: (Sequence s, Sequence s') => (Expr a -> Expr (s' b)) -> Expr (s a) -> Expr (StreamArray s b)
+concatMap :: (Sequence s, Sequence s') => (Expr a -> Expr (s' b)) -> Expr (s a) -> Expr (StreamOrArray s b)
 concatMap = coerce (R.concatMap :: (ReQL -> ReQL) -> ReQL -> ReQL)
 
-skip :: Sequence s => Expr Number -> Expr (s a) -> Expr (StreamArray s a)
+skip :: Sequence s => Expr Number -> Expr (s a) -> Expr (StreamOrArray s a)
 skip = spec2 R.skip
 
-limit :: Sequence s => Expr Number -> Expr (s a) -> Expr (StreamArray s a)
+limit :: Sequence s => Expr Number -> Expr (s a) -> Expr (StreamOrArray s a)
 limit = spec2 R.limit
 
 isEmpty :: Sequence s => Expr (s a) -> Expr Bool
 isEmpty = spec1 R.isEmpty
 
-union :: (Sequence s, Sequence s') => Expr (s a) -> Expr (s' a) -> Expr (StreamArray s a)
+union :: (Sequence s, Sequence s') => Expr (s a) -> Expr (s' a) -> Expr (StreamOrArray s a)
 union = spec2 R.union
 
 instance Monoid (Expr (Array a)) where
   mempty = Expr $ R.expr ([] :: [ Datum ])
   mappend = union
 
-sample :: Sequence s => Expr Number -> Expr (s a) -> Expr (StreamArray s a)
+sample :: Sequence s => Expr Number -> Expr (s a) -> Expr (StreamOrArray s a)
 sample = spec2 R.sample
 
 -- Aggregation
@@ -188,7 +186,7 @@ min = spec1 R.min
 max :: Sequence s => Expr (s a) -> Expr a
 max = spec1 R.max
 
-distinct :: Sequence s => Expr (s a) -> Expr (StreamArray s a)
+distinct :: Sequence s => Expr (s a) -> Expr (StreamOrArray s a)
 distinct = spec1 R.distinct
 
 contains :: Sequence s => Expr a -> Expr (s a)-> Expr Bool
