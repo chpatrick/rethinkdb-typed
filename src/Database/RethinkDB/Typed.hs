@@ -54,6 +54,9 @@ instance Num (Expr Number) where
         (ifB (x ==* 0) 0 (-1))
   fromInteger = Expr . R.expr
 
+mod :: Expr Number -> Expr Number -> Expr Number
+mod = spec2 R.mod
+
 instance Fractional (Expr Number) where
   (/) = spec2 (R./)
   fromRational = Expr . R.expr
