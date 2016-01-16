@@ -1,6 +1,106 @@
 {-# LANGUAGE FlexibleInstances, TypeFamilies, ScopedTypeVariables, FlexibleContexts, OverloadedStrings #-}
 
-module Database.RethinkDB.Typed where
+module Database.RethinkDB.Typed
+  ( -- * The expression type
+    Expr(..)
+  , expr
+    -- * Execution
+  , ResultOf
+  , run
+    -- * Primitive types
+  , Datum
+  , Object
+  , Number
+  , Time
+  , Database.RethinkDB.Typed.String
+  -- * Sequence types
+  , Sequence
+  , Stream
+  , Selection
+  , Table
+  , Array
+  , SingleSelection
+  , StreamOrArray
+  -- * Manipulating databases
+  , dbCreate
+  , dbDrop
+  , dbList
+  -- * Manipulating tables
+  , tableCreate
+  , tableDrop
+  , tableList
+  , Observable
+  , changes
+  -- * Writing data
+  , insert
+  , Updatable
+  , update
+  , replace
+  , delete
+  , sync
+  -- * Selecting data
+  , get
+  , table
+  , Filtered
+  , Database.RethinkDB.Typed.filter
+  , innerJoin
+  , outerJoin
+  , left
+  , right
+  , Database.RethinkDB.Typed.zip
+  -- * Transformations
+  , Database.RethinkDB.Typed.map
+  , withFields
+  , Database.RethinkDB.Typed.concatMap
+  , skip
+  , limit
+  , isEmpty
+  , union
+  , sample
+  -- * Aggregation
+  , reduce
+  , count
+  , Database.RethinkDB.Typed.sum
+  , avg
+  , Database.RethinkDB.Typed.min
+  , Database.RethinkDB.Typed.max
+  , distinct
+  , contains
+  -- * Document manipulation
+  , Manip
+  , pluck
+  , without
+  , append
+  , prepend
+  , difference
+  , setInsert
+  , setUnion
+  , setIntersection
+  , setDifference
+  , IsDatum
+  , (!..)
+  , SingleOrObj
+  , (!)
+  , keys
+  , values
+  -- * Math and logic
+  , Database.RethinkDB.Typed.mod
+  , random
+  , Database.RethinkDB.Typed.round
+  , Database.RethinkDB.Typed.floor
+  , ceil
+  -- * Time and date
+  , now
+  , BuildTime(..)
+  , time
+  -- * Control structures
+  , forEach
+  , range
+  -- * Type assertions
+  , number
+  , string
+  , bool
+  ) where
 
 import qualified Database.RethinkDB as R
 import Database.RethinkDB (ReQL)
@@ -12,6 +112,44 @@ import Data.Coerce
 import Data.String
 import Data.Text (Text)
 import Data.Time
+
+-- | A ReQL expression resulting in type 'a'.
+newtype Expr a = Expr { unExpr :: ReQL }
+
+instance IsString (Expr Database.RethinkDB.Typed.String) where
+  fromString = Expr . R.expr
+
+type family DatumOf a
+
+type instance DatumOf Datum = Datum
+type instance DatumOf Integer = Number
+type instance DatumOf Int = Number
+type instance DatumOf Double = Number
+type instance DatumOf Float = Number
+type instance DatumOf [ a ] = Array (DatumOf a)
+type instance DatumOf Object = Object
+
+expr :: R.ToDatum a => a -> Expr (DatumOf a)
+expr = Expr . R.expr . R.toDatum
+
+-- Execution
+
+type family ResultOf a
+
+type instance ResultOf R.Datum = R.Datum
+type instance ResultOf (Table a) = [ ResultOf a ]
+type instance ResultOf (Array a) = [ ResultOf a ]
+type instance ResultOf (Selection a) = [ ResultOf a ]
+type instance ResultOf Number = Number
+type instance ResultOf Object = Object
+type instance ResultOf Bool = Bool
+type instance ResultOf Database.RethinkDB.Typed.String = Database.RethinkDB.Typed.String
+type instance ResultOf Time = Time
+type instance ResultOf ( a, b ) = Object
+
+run :: forall a. R.Result (ResultOf a) => R.RethinkDBHandle -> Expr a -> IO (ResultOf a)
+run = coerce (R.run :: R.RethinkDBHandle -> ReQL -> IO (ResultOf a))
+
 
 -- Primitives
 
@@ -28,12 +166,13 @@ instance Sequence Stream where
 instance Sequence Selection where
 instance Sequence Table where
 
--- Given an array, return an array, otherwise return a stream.
+-- | Most ReQL functions can take both sequences and arrays,
+-- producing a new array for arrays and a stream otherwise.
+--
+-- This type family returns the output sequence type for input sequence type 's'.
 type family StreamOrArray s where
   StreamOrArray Array = Array
   StreamOrArray s = Stream
-
-newtype Expr a = Expr { unExpr :: ReQL }
 
 type Datum = R.Datum
 type Object = R.Object
@@ -69,6 +208,7 @@ tableDrop = coerce (R.tableDrop :: R.Table -> ReQL)
 tableList :: R.Database -> Expr (Array Database.RethinkDB.Typed.String)
 tableList = coerce (R.tableList :: R.Database -> ReQL)
 
+-- | Sequence types that can be watched for changes.
 class Observable (s :: * -> *) where
 instance Observable SingleSelection
 instance Observable Stream
@@ -81,6 +221,7 @@ changes = spec1 R.changes
 insert :: Expr (Array Object) -> R.Table -> Expr Object
 insert = coerce (R.insert :: ReQL -> R.Table -> ReQL)
 
+-- | Sequence types whose members can be updated.
 class Updatable (s :: * -> *) where
 instance Updatable Table
 instance Updatable Selection
@@ -106,6 +247,7 @@ get = spec2 R.get
 table :: Text -> Expr (Table Object)
 table = Expr . R.expr . R.table
 
+-- | The result sequence type returned by `Database.RethinkDB.Typed.filter` given then input sequence type.
 type family Filtered s where
   Filtered Table = Selection
   Filtered Selection = Selection
@@ -194,6 +336,7 @@ contains = spec2 R.contains
 
 -- Document manipulation
 
+-- | The result of applying `pluck` or `without` to an expression.
 type family Manip a
 type instance Manip (Array Object) = Array Object
 type instance Manip Object = Object
@@ -239,17 +382,17 @@ instance IsDatum Time
 instance IsDatum Database.RethinkDB.Typed.String
 instance IsDatum a => IsDatum (Array a)
 
+class SingleOrObj a where
+instance SingleOrObj (SingleSelection Object)
+instance SingleOrObj Object
+
 -- | Index an `Array`.
 (!..) :: Expr (Array a) -> Expr Number -> Expr a
 (!..) = spec2 (R.!)
 
 -- | Index an object.
-(!) :: IsDatum a => Expr Object -> Expr Text -> Expr a
+(!) :: (SingleOrObj o, IsDatum a) => Expr o -> Expr Text -> Expr a
 (!) = spec2 (R.!)
-
-class SingleOrObj a where
-instance SingleOrObj (SingleSelection Object)
-instance SingleOrObj Object
 
 keys :: SingleOrObj o => Expr o -> Expr (Array Database.RethinkDB.Typed.String)
 keys = spec1 R.keys
@@ -356,39 +499,3 @@ string = id
 
 bool :: Expr Bool -> Expr Bool
 bool = id
-
-type family DatumOf a
-
-type instance DatumOf Datum = Datum
-type instance DatumOf Integer = Number
-type instance DatumOf Int = Number
-type instance DatumOf Double = Number
-type instance DatumOf Float = Number
-type instance DatumOf [ a ] = Array (DatumOf a)
-type instance DatumOf Object = Object
-
-expr :: R.ToDatum a => a -> Expr (DatumOf a)
-expr = Expr . R.expr . R.toDatum
-
-type family ResultOf a
-
-type instance ResultOf R.Datum = R.Datum
-type instance ResultOf (Table a) = [ ResultOf a ]
-type instance ResultOf (Array a) = [ ResultOf a ]
-type instance ResultOf (Selection a) = [ ResultOf a ]
-type instance ResultOf Number = Number
-type instance ResultOf Object = Object
-type instance ResultOf Bool = Bool
-type instance ResultOf Database.RethinkDB.Typed.String = Database.RethinkDB.Typed.String
-type instance ResultOf Time = Time
-type instance ResultOf ( a, b ) = Object
-
-instance IsString (Expr Database.RethinkDB.Typed.String) where
-  fromString = Expr . R.expr
-
-run :: forall a. R.Result (ResultOf a) => R.RethinkDBHandle -> Expr a -> IO (ResultOf a)
-run = coerce (R.run :: R.RethinkDBHandle -> ReQL -> IO (ResultOf a))
-
-(&) :: a -> (a -> b) -> b
-x & f = f x
-infixl 1 &
