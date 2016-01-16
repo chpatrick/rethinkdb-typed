@@ -71,11 +71,11 @@ tableDrop = coerce (R.tableDrop :: R.Table -> ReQL)
 tableList :: R.Database -> Expr (Array Database.RethinkDB.Typed.String)
 tableList = coerce (R.tableList :: R.Database -> ReQL)
 
-class Changes (s :: * -> *) where
-instance Changes SingleSelection
-instance Changes Stream
+class Observable (s :: * -> *) where
+instance Observable SingleSelection
+instance Observable Stream
 
-changes :: Changes s => Expr (s a) -> Expr (Stream Object)
+changes :: Observable s => Expr (s a) -> Expr (Stream Object)
 changes = spec1 R.changes
 
 -- Writing data
@@ -161,6 +161,10 @@ isEmpty = spec1 R.isEmpty
 union :: (Sequence s, Sequence s') => Expr (s a) -> Expr (s' a) -> Expr (StreamArray s a)
 union = spec2 R.union
 
+instance Monoid (Expr (Array a)) where
+  mempty = Expr $ R.expr ([] :: [ Datum ])
+  mappend = union
+
 sample :: Sequence s => Expr Number -> Expr (s a) -> Expr (StreamArray s a)
 sample = spec2 R.sample
 
@@ -227,24 +231,23 @@ setIntersection = spec2 R.setIntersection
 setDifference :: Expr (Array a) -> Expr (Array a) -> Expr (Array a)
 setDifference = spec2 R.setDifference
 
-type family IndexOf a
-type instance IndexOf (Array a) = Number
-type instance IndexOf Object = Text
-type instance IndexOf (SingleSelection Object) = Text
-type instance IndexOf (Stream Object) = Text
-type instance IndexOf (Selection Object) = Text
-type instance IndexOf (Table Object) = Text
+class IsDatum a where
 
-type family IndexedOf a
-type instance IndexedOf (Array a) = a
-type instance IndexedOf Object = Datum
-type instance IndexedOf (SingleSelection Object) = Datum
-type instance IndexedOf (Stream Object) = Stream Datum
-type instance IndexedOf (Selection Object) = Stream Datum
-type instance IndexedOf (Table Object) = Stream Datum
+instance IsDatum Datum
+instance IsDatum Bool
+instance IsDatum Number
+instance IsDatum Object
+instance IsDatum Time
+instance IsDatum Database.RethinkDB.Typed.String
+instance IsDatum a => IsDatum (Array a)
 
-index :: Expr (IndexOf a) -> Expr a -> Expr (IndexedOf a)
-index = flip $ spec2 (R.!)
+-- | Index an `Array`.
+(!..) :: Expr (Array a) -> Expr Number -> Expr a
+(!..) = spec2 (R.!)
+
+-- | Index an object.
+(!) :: IsDatum a => Expr Object -> Expr Text -> Expr a
+(!) = spec2 (R.!)
 
 class SingleOrObj a where
 instance SingleOrObj (SingleSelection Object)
@@ -346,28 +349,15 @@ forEach = coerce (R.forEach :: (ReQL -> ReQL) -> ReQL -> ReQL)
 range :: Expr Number -> Expr (Stream Number)
 range = spec1 R.range
 
+-- Type assertions (useful to reduce ambiguity)
+number :: Expr Number -> Expr Number
+number = id
 
--- Type assertions
+string :: Expr Database.RethinkDB.Typed.String -> Expr Database.RethinkDB.Typed.String
+string = id
 
--- Assert that this datum is an object.
-withObject :: Expr R.Datum -> Expr Object
-withObject = coerce
-
--- Assert that this datum is a number.
-withNumber :: Expr R.Datum -> Expr Number
-withNumber = coerce
-
--- Assert that this datum is a string.
-withString :: Expr R.Datum -> Expr Database.RethinkDB.Typed.String
-withString = coerce
-
--- Assert that this sequence of datums is a sequence of objects.
-withObjects :: Sequence s => Expr (s Datum) -> Expr (s Object)
-withObjects = coerce
-
--- Assert that this sequence of datums is a sequence of numbers.
-withNumbers :: Sequence s => Expr (s Datum) -> Expr (s Number)
-withNumbers = coerce
+bool :: Expr Bool -> Expr Bool
+bool = id
 
 type family DatumOf a
 
