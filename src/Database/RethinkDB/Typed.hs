@@ -315,25 +315,25 @@ now :: Expr Time
 now = coerce R.now
 
 data BuildTime = BuildTime
-  { year :: Expr Number
-  , month :: Expr Number
-  , day :: Expr Number
-  , hour :: Expr Number
-  , minute :: Expr Number
-  , second :: Expr Number
-  , timezone :: Expr Database.RethinkDB.Typed.String
+  { yearPart :: Expr Number
+  , monthPart :: Expr Number
+  , dayPart :: Expr Number
+  , hourPart :: Expr Number
+  , minutePart :: Expr Number
+  , secondPart :: Expr Number
+  , timezonePart :: Expr Database.RethinkDB.Typed.String
   }
 
 time :: BuildTime -> Expr Time
 time bt
-  = Expr $ R.time
-      (unExpr (year bt))
-      (unExpr (month bt))
-      (unExpr (day bt))
-      (unExpr (hour bt))
-      (unExpr (minute bt))
-      (unExpr (second bt))
-      (unExpr (timezone bt))
+  = coerce R.time
+      (yearPart bt)
+      (monthPart bt)
+      (dayPart bt)
+      (hourPart bt)
+      (minutePart bt)
+      (secondPart bt)
+      (timezonePart bt)
 
 -- Control structures
 
