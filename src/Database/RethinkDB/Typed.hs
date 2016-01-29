@@ -101,6 +101,7 @@ module Database.RethinkDB.Typed
   -- * Control structures
   , forEach
   , range
+  , apply
   -- * Type assertions
   , number
   , string
@@ -535,6 +536,9 @@ forEach = coerce (R.forEach :: (ReQL -> ReQL) -> ReQL -> ReQL)
 
 range :: Expr Number -> Expr (Stream Number)
 range = spec1 R.range
+
+apply :: (Expr a -> Expr b) -> Expr a -> Expr b
+apply f x = coerce (R.apply :: ((ReQL -> ReQL) -> [ ReQL ] -> ReQL)) f [x]
 
 -- Type assertions (useful to reduce ambiguity)
 number :: Expr Number -> Expr Number
