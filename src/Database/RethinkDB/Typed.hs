@@ -4,7 +4,9 @@ module Database.RethinkDB.Typed
   ( -- * The expression type
     Expr(..)
   , DatumOf(..)
-  , expr
+  , lit
+  , (.=)
+  , obj
     -- * Execution
   , ResultOf
   , run
@@ -13,7 +15,7 @@ module Database.RethinkDB.Typed
   , Object
   , Number
   , Time
-  , Database.RethinkDB.Typed.String
+  , String
   -- * Sequence types
   , Sequence
   , Stream
@@ -105,19 +107,22 @@ module Database.RethinkDB.Typed
 
 import qualified Database.RethinkDB as R
 import Database.RethinkDB (ReQL)
+import Database.RethinkDB.ReQL (Dynamic)
 import qualified Database.RethinkDB.Datum as R hiding (Result)
 
 import Data.Boolean
 import Data.ByteString (ByteString)
 import Data.Coerce
-import Data.String
+import Data.String (IsString(..))
 import Data.Text (Text)
 import Data.Time
+import Prelude hiding (String)
+import qualified Prelude as P
 
 -- | A ReQL expression resulting in type 'a'.
 newtype Expr a = Expr { unExpr :: ReQL }
 
-instance IsString (Expr Database.RethinkDB.Typed.String) where
+instance IsString (Expr String) where
   fromString = Expr . R.expr
 
 type family DatumOf a
@@ -127,12 +132,21 @@ type instance DatumOf Integer = Number
 type instance DatumOf Int = Number
 type instance DatumOf Double = Number
 type instance DatumOf Float = Number
+type instance DatumOf Rational = Number
 type instance DatumOf [ a ] = Array (DatumOf a)
 type instance DatumOf Object = Object
-type instance DatumOf Text = Database.RethinkDB.Typed.String
+type instance DatumOf Text = String
+type instance DatumOf String = String
+type instance DatumOf Bool = Bool
 
-expr :: R.ToDatum a => a -> Expr (DatumOf a)
-expr = Expr . R.expr . R.toDatum
+lit :: R.ToDatum a => a -> Expr (DatumOf a)
+lit = Expr . R.expr . R.toDatum
+
+(.=) :: IsDatum v => Expr String -> Expr v -> R.Attribute Dynamic
+(.=) = coerce ((R.::=) :: ReQL -> ReQL -> R.Attribute Dynamic)
+
+obj :: [ R.Attribute Dynamic ] -> Expr Object
+obj = Expr . R.expr
 
 -- Execution
 
@@ -145,7 +159,7 @@ type instance ResultOf (Selection a) = [ ResultOf a ]
 type instance ResultOf Number = Number
 type instance ResultOf Object = Object
 type instance ResultOf Bool = Bool
-type instance ResultOf Database.RethinkDB.Typed.String = Database.RethinkDB.Typed.String
+type instance ResultOf String = String
 type instance ResultOf Time = Time
 type instance ResultOf ( a, b ) = Object
 
@@ -197,7 +211,7 @@ dbCreate = coerce (R.dbCreate :: Text -> ReQL)
 dbDrop :: R.Database -> Expr Object
 dbDrop = coerce (R.dbDrop :: R.Database -> ReQL)
 
-dbList :: Expr (Array Database.RethinkDB.Typed.String)
+dbList :: Expr (Array String)
 dbList = coerce R.dbList
 
 -- Manipulating tables
@@ -207,7 +221,7 @@ tableCreate = coerce (R.tableCreate :: R.Table -> ReQL)
 tableDrop :: R.Table -> Expr Object
 tableDrop = coerce (R.tableDrop :: R.Table -> ReQL)
 
-tableList :: R.Database -> Expr (Array Database.RethinkDB.Typed.String)
+tableList :: R.Database -> Expr (Array String)
 tableList = coerce (R.tableList :: R.Database -> ReQL)
 
 -- | Sequence types that can be watched for changes.
@@ -243,7 +257,7 @@ sync = spec1 R.sync
 
 -- Selecting data
 
-get :: Expr Database.RethinkDB.Typed.String -> Expr (Table Object) -> Expr (SingleSelection Object)
+get :: Expr String -> Expr (Table Object) -> Expr (SingleSelection Object)
 get = spec2 R.get
 
 table :: Text -> Expr (Table Object)
@@ -285,7 +299,7 @@ zip = spec1 R.zip
 map :: Sequence s => (Expr a -> Expr b) -> Expr (s a) -> Expr (StreamOrArray s b)
 map = coerce (R.map :: (ReQL -> ReQL) -> ReQL -> ReQL)
 
-withFields :: Sequence s => [ Expr Database.RethinkDB.Typed.String ] -> Expr (s Object) -> Expr (StreamOrArray s Object)
+withFields :: Sequence s => [ Expr String ] -> Expr (s Object) -> Expr (StreamOrArray s Object)
 withFields = coerce (R.withFields :: [ ReQL ] -> ReQL -> ReQL)
 
 concatMap :: (Sequence s, Sequence s') => (Expr a -> Expr (s' b)) -> Expr (s a) -> Expr (StreamOrArray s b)
@@ -347,11 +361,14 @@ type instance Manip (Selection Object) = Stream Object
 type instance Manip (Stream Object) = Stream Object
 type instance Manip (Table Object) = Stream Object
 
-pluck :: [ Expr Database.RethinkDB.Typed.String ] -> Expr a -> Expr (Manip a)
+pluck :: [ Expr String ] -> Expr a -> Expr (Manip a)
 pluck = coerce (R.pluck :: [ ReQL ] -> ReQL -> ReQL)
 
-without :: [ Expr Database.RethinkDB.Typed.String ] -> Expr a -> Expr (Manip a)
+without :: [ Expr String ] -> Expr a -> Expr (Manip a)
 without = coerce (R.without :: [ ReQL ] -> ReQL -> ReQL)
+
+merge :: Expr Object -> Expr Object -> Expr Object
+merge = spec2 R.merge
 
 append :: Expr a -> Expr (Array a) -> Expr (Array a)
 append = spec2 R.append
@@ -381,7 +398,7 @@ instance IsDatum Bool
 instance IsDatum Number
 instance IsDatum Object
 instance IsDatum Time
-instance IsDatum Database.RethinkDB.Typed.String
+instance IsDatum String
 instance IsDatum a => IsDatum (Array a)
 
 class SingleOrObj a where
@@ -396,7 +413,7 @@ instance SingleOrObj Object
 (!) :: (SingleOrObj o, IsDatum a) => Expr o -> Expr Text -> Expr a
 (!) = spec2 (R.!)
 
-keys :: SingleOrObj o => Expr o -> Expr (Array Database.RethinkDB.Typed.String)
+keys :: SingleOrObj o => Expr o -> Expr (Array String)
 keys = spec1 R.keys
 
 values :: SingleOrObj o => Expr o -> Expr (Array Datum)
@@ -404,7 +421,7 @@ values = spec1 R.values
 
 -- String manipulation
 
-match :: Expr Database.RethinkDB.Typed.String -> Expr Database.RethinkDB.Typed.String -> Expr Object
+match :: Expr String -> Expr String -> Expr Object
 match = spec2 R.match
 
 -- Math and logic
@@ -416,11 +433,11 @@ instance Num (Expr Number) where
   signum x
     = ifB (x >* 0) 1
         (ifB (x ==* 0) 0 (-1))
-  fromInteger = Expr . R.expr
+  fromInteger = lit
 
 instance Fractional (Expr Number) where
   (/) = spec2 (R./)
-  fromRational = Expr . R.expr
+  fromRational = lit
 
 mod :: Expr Number -> Expr Number -> Expr Number
 mod = spec2 R.mod
@@ -467,7 +484,7 @@ data BuildTime = BuildTime
   , hourPart :: Expr Number
   , minutePart :: Expr Number
   , secondPart :: Expr Number
-  , timezonePart :: Expr Database.RethinkDB.Typed.String
+  , timezonePart :: Expr String
   }
 
 time :: BuildTime -> Expr Time
@@ -496,7 +513,7 @@ range = spec1 R.range
 number :: Expr Number -> Expr Number
 number = id
 
-string :: Expr Database.RethinkDB.Typed.String -> Expr Database.RethinkDB.Typed.String
+string :: Expr String -> Expr String
 string = id
 
 bool :: Expr Bool -> Expr Bool
