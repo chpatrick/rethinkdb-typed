@@ -3,6 +3,7 @@
 module Database.RethinkDB.Typed
   ( -- * The expression type
     Expr(..)
+  , DatumOf(..)
   , expr
     -- * Execution
   , ResultOf
@@ -128,6 +129,7 @@ type instance DatumOf Double = Number
 type instance DatumOf Float = Number
 type instance DatumOf [ a ] = Array (DatumOf a)
 type instance DatumOf Object = Object
+type instance DatumOf Text = Database.RethinkDB.Typed.String
 
 expr :: R.ToDatum a => a -> Expr (DatumOf a)
 expr = Expr . R.expr . R.toDatum
