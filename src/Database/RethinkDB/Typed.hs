@@ -35,6 +35,8 @@ module Database.RethinkDB.Typed
   , Observable
   , changes
   -- * Writing data
+  , WriteOpts(..)
+  , def
   , insert
   , Updatable
   , update
@@ -107,7 +109,7 @@ module Database.RethinkDB.Typed
 
 import qualified Database.RethinkDB as R
 import Database.RethinkDB (ReQL)
-import Database.RethinkDB.ReQL (Dynamic)
+import Database.RethinkDB.ReQL (Dynamic, Static)
 import qualified Database.RethinkDB.Datum as R hiding (Result)
 
 import Data.Boolean
@@ -234,8 +236,27 @@ changes = spec1 R.changes
 
 -- Writing data
 
-insert :: Expr (Array Object) -> R.Table -> Expr Object
-insert = coerce (R.insert :: ReQL -> R.Table -> ReQL)
+data WriteOpts = WriteOpts
+  { returnChanges :: Bool
+  , durability :: Maybe R.Durability
+  , nonAtomic :: Bool
+  }
+
+def :: WriteOpts
+def = WriteOpts False Nothing False
+
+optsToArgs :: WriteOpts -> [ R.Attribute Static ]
+optsToArgs opts
+  = concat
+    [ if returnChanges opts then [ R.returnChanges ] else [] 
+    , maybe [] (\d -> [ R.durability d ]) (durability opts)
+    , if nonAtomic opts then [ R.nonAtomic ] else []
+    ]
+
+insert :: WriteOpts -> Expr (Array Object) -> R.Table -> Expr Object
+insert opts
+  = coerce ((R.ex R.insert) :: [ R.Attribute Static ] -> ReQL -> R.Table -> ReQL)
+      $ optsToArgs opts
 
 -- | Sequence types whose members can be updated.
 class Updatable (s :: * -> *) where
@@ -243,14 +264,20 @@ instance Updatable Table
 instance Updatable Selection
 instance Updatable SingleSelection
 
-update :: Updatable s => (Expr Object -> Expr Object) -> Expr (s Object) -> Expr Object
-update = coerce (R.update :: (ReQL -> ReQL) -> ReQL -> ReQL)
+update :: Updatable s => WriteOpts -> (Expr Object -> Expr Object) -> Expr (s Object) -> Expr Object
+update opts
+  = coerce ((R.ex R.update) :: [ R.Attribute Static ] -> (ReQL -> ReQL) -> ReQL -> ReQL)
+      $ optsToArgs opts
 
-replace :: Updatable s => (Expr Object -> Expr Object) -> Expr (s Object) -> Expr Object
-replace = coerce (R.replace :: (ReQL -> ReQL) -> ReQL -> ReQL)
+replace :: Updatable s => WriteOpts -> (Expr Object -> Expr Object) -> Expr (s Object) -> Expr Object
+replace opts
+  = coerce ((R.ex R.replace) :: [ R.Attribute Static ] -> (ReQL -> ReQL) -> ReQL -> ReQL)
+      $ optsToArgs opts
 
-delete :: Updatable s => Expr (s Object) -> Expr Object
-delete = spec1 R.delete
+delete :: Updatable s => WriteOpts -> Expr (s Object) -> Expr Object
+delete opts
+  = coerce ((R.ex R.delete) :: [ R.Attribute Static ] -> ReQL -> ReQL)
+      $ optsToArgs opts
 
 sync :: Expr (Table a) -> Expr Object
 sync = spec1 R.sync
