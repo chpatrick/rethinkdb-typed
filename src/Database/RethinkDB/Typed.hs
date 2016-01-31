@@ -1,4 +1,8 @@
-{-# LANGUAGE FlexibleInstances, TypeFamilies, ScopedTypeVariables, FlexibleContexts, OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Database.RethinkDB.Typed
   ( -- * The expression type
@@ -125,6 +129,9 @@ import qualified Prelude as P
 -- | A ReQL expression resulting in type 'a'.
 newtype Expr a = Expr { unExpr :: ReQL }
 
+instance R.Expr a => R.Expr (Expr a) where
+  expr = unExpr
+
 instance IsString (Expr String) where
   fromString = Expr . R.expr
 
@@ -141,7 +148,13 @@ type instance DatumOf Object = Object
 type instance DatumOf Text = String
 type instance DatumOf String = String
 type instance DatumOf Bool = Bool
+type instance DatumOf (Expr a) = DatumOf a
 
+-- | Convert a suitable data structure (possibly containing `Expr`s) into an `Expr`.
+expr :: R.Expr a => a -> Expr (DatumOf a)
+expr = Expr . R.expr
+
+-- | Convert a plain data structure into an `Expr`.
 lit :: R.ToDatum a => a -> Expr (DatumOf a)
 lit = Expr . R.expr . R.toDatum
 
@@ -168,7 +181,6 @@ type instance ResultOf ( a, b ) = Object
 
 run :: forall a. R.Result (ResultOf a) => R.RethinkDBHandle -> Expr a -> IO (ResultOf a)
 run = coerce (R.run :: R.RethinkDBHandle -> ReQL -> IO (ResultOf a))
-
 
 -- Primitives
 
@@ -375,7 +387,7 @@ max = spec1 R.max
 distinct :: Sequence s => Expr (s a) -> Expr (StreamOrArray s a)
 distinct = spec1 R.distinct
 
-contains :: Sequence s => Expr a -> Expr (s a)-> Expr Bool
+contains :: Sequence s => Expr a -> Expr (s a) -> Expr Bool
 contains = spec2 R.contains
 
 -- Document manipulation
