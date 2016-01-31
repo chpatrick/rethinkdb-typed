@@ -540,6 +540,16 @@ time bt
 
 -- Control structures
 
+-- | Apply a function on the server-side. This ensures that the RHS is only computed once.
+apply :: (Expr a -> Expr b) -> Expr a -> Expr b
+apply f x = coerce (R.apply :: ((ReQL -> ReQL) -> [ ReQL ] -> ReQL)) f [x]
+
+-- | Synonym for `apply`.
+($%) :: (Expr a -> Expr b) -> Expr a -> Expr b
+($%) = apply
+
+infixr 0 $%
+
 instance IfB (Expr a) where
   ifB = coerce (R.branch :: ReQL -> ReQL -> ReQL -> ReQL)
 
@@ -548,9 +558,6 @@ forEach = coerce (R.forEach :: (ReQL -> ReQL) -> ReQL -> ReQL)
 
 range :: Expr Number -> Expr (Stream Number)
 range = spec1 R.range
-
-apply :: (Expr a -> Expr b) -> Expr a -> Expr b
-apply f x = coerce (R.apply :: ((ReQL -> ReQL) -> [ ReQL ] -> ReQL)) f [x]
 
 -- Type assertions (useful to reduce ambiguity)
 number :: Expr Number -> Expr Number
