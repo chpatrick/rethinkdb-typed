@@ -177,6 +177,8 @@ lit = Expr . R.expr . R.toDatum
 (.=) :: IsDatum v => Expr String -> Expr v -> R.Attribute Dynamic
 (.=) = coerce ((R.::=) :: ReQL -> ReQL -> R.Attribute Dynamic)
 
+infix 0 .=
+
 obj :: [ R.Attribute Dynamic ] -> Expr Object
 obj = Expr . R.expr
 
