@@ -128,6 +128,7 @@ import Database.RethinkDB (ReQL)
 import Database.RethinkDB.ReQL (Dynamic, Static)
 import qualified Database.RethinkDB.Datum as R hiding (Result)
 
+import qualified Data.Aeson as Aeson
 import Data.Boolean
 import Data.ByteString (ByteString)
 import Data.Coerce
@@ -150,6 +151,7 @@ instance IsString (Expr String) where
 type family DatumOf a
 
 type instance DatumOf Datum = Datum
+type instance DatumOf Aeson.Value = Datum
 type instance DatumOf Integer = Number
 type instance DatumOf Int = Number
 type instance DatumOf Double = Number
