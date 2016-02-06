@@ -5,8 +5,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Database.RethinkDB.Typed
-  ( -- * The expression type
-    Expr(..)
+  ( R.RethinkDBHandle(..)
+  , R.WriteResponse(..)
+  , R.Change(..)
+    -- * The expression type
+  , Expr(..)
   , DatumOf(..)
   , lit
   , (.=)
@@ -178,6 +181,7 @@ type instance ResultOf Bool = Bool
 type instance ResultOf String = String
 type instance ResultOf Time = Time
 type instance ResultOf ( a, b ) = Object
+type instance ResultOf R.WriteResponse = R.WriteResponse
 
 run :: forall a. R.Result (ResultOf a) => R.RethinkDBHandle -> Expr a -> IO (ResultOf a)
 run = coerce (R.run :: R.RethinkDBHandle -> ReQL -> IO (ResultOf a))
@@ -261,7 +265,7 @@ def = WriteOpts False Nothing False
 optsToArgs :: WriteOpts -> [ R.Attribute Static ]
 optsToArgs opts
   = concat
-    [ if returnChanges opts then [ R.returnChanges ] else [] 
+    [ if returnChanges opts then [ R.returnChanges ] else []
     , maybe [] (\d -> [ R.durability d ]) (durability opts)
     , if nonAtomic opts then [ R.nonAtomic ] else []
     ]
@@ -277,17 +281,17 @@ instance Updatable Table
 instance Updatable Selection
 instance Updatable SingleSelection
 
-update :: Updatable s => WriteOpts -> (Expr Object -> Expr Object) -> Expr (s Object) -> Expr Object
+update :: Updatable s => WriteOpts -> (Expr Object -> Expr Object) -> Expr (s Object) -> Expr R.WriteResponse
 update opts
   = coerce ((R.ex R.update) :: [ R.Attribute Static ] -> (ReQL -> ReQL) -> ReQL -> ReQL)
       $ optsToArgs opts
 
-replace :: Updatable s => WriteOpts -> (Expr Object -> Expr Object) -> Expr (s Object) -> Expr Object
+replace :: Updatable s => WriteOpts -> (Expr Object -> Expr Object) -> Expr (s Object) -> Expr R.WriteResponse
 replace opts
   = coerce ((R.ex R.replace) :: [ R.Attribute Static ] -> (ReQL -> ReQL) -> ReQL -> ReQL)
       $ optsToArgs opts
 
-delete :: Updatable s => WriteOpts -> Expr (s Object) -> Expr Object
+delete :: Updatable s => WriteOpts -> Expr (s Object) -> Expr R.WriteResponse
 delete opts
   = coerce ((R.ex R.delete) :: [ R.Attribute Static ] -> ReQL -> ReQL)
       $ optsToArgs opts
@@ -553,7 +557,7 @@ infixr 0 $%
 instance IfB (Expr a) where
   ifB = coerce (R.branch :: ReQL -> ReQL -> ReQL -> ReQL)
 
-forEach :: Sequence s => (Expr a -> Expr write) -> Expr (s a) -> Expr Object
+forEach :: Sequence s => (Expr a -> Expr write) -> Expr (s a) -> Expr R.WriteResponse
 forEach = coerce (R.forEach :: (ReQL -> ReQL) -> ReQL -> ReQL)
 
 range :: Expr Number -> Expr (Stream Number)
