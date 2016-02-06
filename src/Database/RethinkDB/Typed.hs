@@ -187,6 +187,7 @@ type instance ResultOf R.Datum = R.Datum
 type instance ResultOf (Table a) = [ ResultOf a ]
 type instance ResultOf (Array a) = [ ResultOf a ]
 type instance ResultOf (Selection a) = [ ResultOf a ]
+type instance ResultOf (SingleSelection a) = ResultOf a
 type instance ResultOf Number = Number
 type instance ResultOf Object = Object
 type instance ResultOf Bool = Bool
