@@ -9,6 +9,7 @@ module Database.RethinkDB.Typed
   , R.WriteResponse(..)
   , R.Change(..)
   , R.Database(..)
+  , TableName
     -- * The expression type
   , Expr(..)
   , DatumOf
@@ -134,6 +135,8 @@ import Data.String (IsString(..))
 import Data.Text (Text)
 import Data.Time
 import Prelude hiding (String)
+
+type TableName = R.Table
 
 -- | A ReQL expression resulting in type 'a'.
 newtype Expr a = Expr { unExpr :: ReQL }
@@ -313,8 +316,8 @@ sync = spec1 R.sync
 get :: Expr String -> Expr (Table Object) -> Expr (SingleSelection Object)
 get = spec2 R.get
 
-table :: Text -> Expr (Table Object)
-table = Expr . R.expr . R.table
+table :: R.Table -> Expr (Table Object)
+table = Expr . R.expr
 
 -- | The result sequence type returned by `Database.RethinkDB.Typed.filter` given then input sequence type.
 type family Filtered s where
