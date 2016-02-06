@@ -16,6 +16,7 @@ module Database.RethinkDB.Typed
   , lit
   , (.=)
   , obj
+  , str
   , expr
     -- * Execution
   , ResultOf
@@ -96,8 +97,8 @@ module Database.RethinkDB.Typed
   , setIntersection
   , setDifference
   , IsDatum
+  , single
   , (!..)
-  , SingleOrObj
   , (!)
   , keys
   , values
@@ -136,6 +137,7 @@ import Data.String (IsString(..))
 import Data.Text (Text)
 import Data.Time
 import Prelude hiding (String)
+import qualified Prelude
 
 type TableName = R.Table
 
@@ -160,7 +162,6 @@ type instance DatumOf Rational = Number
 type instance DatumOf [ a ] = Array (DatumOf a)
 type instance DatumOf Object = Object
 type instance DatumOf Text = String
-type instance DatumOf String = String
 type instance DatumOf Bool = Bool
 type instance DatumOf (Expr a) = DatumOf a
 type instance DatumOf Binary = Binary
@@ -178,6 +179,9 @@ lit = Expr . R.expr . R.toDatum
 
 obj :: [ R.Attribute Dynamic ] -> Expr Object
 obj = Expr . R.expr
+
+str :: Prelude.String -> Expr String
+str = Expr . R.expr
 
 -- Execution
 
@@ -460,22 +464,26 @@ instance IsDatum Time
 instance IsDatum String
 instance IsDatum a => IsDatum (Array a)
 
-class SingleOrObj a where
-instance SingleOrObj (SingleSelection Object)
-instance SingleOrObj Object
+-- | Get the focus of a `SingleSelection`.
+single :: Expr (SingleSelection a) -> Expr a
+single = coerce
 
 -- | Index an `Array`.
 (!..) :: Expr (Array a) -> Expr Number -> Expr a
 (!..) = spec2 (R.!)
 
+infixl !..
+
 -- | Index an object.
-(!) :: (SingleOrObj o, IsDatum a) => Expr o -> Expr Text -> Expr a
+(!) :: IsDatum a => Expr Object -> Expr Text -> Expr a
 (!) = spec2 (R.!)
 
-keys :: SingleOrObj o => Expr o -> Expr (Array String)
+infixl !
+
+keys :: Expr Object -> Expr (Array String)
 keys = spec1 R.keys
 
-values :: SingleOrObj o => Expr o -> Expr (Array Datum)
+values :: Expr Object -> Expr (Array Datum)
 values = spec1 R.values
 
 -- String manipulation
