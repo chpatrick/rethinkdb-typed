@@ -279,7 +279,7 @@ optsToArgs opts
     , if nonAtomic opts then [ R.nonAtomic ] else []
     ]
 
-insert :: WriteOpts -> Expr (Array Object) -> R.Table -> Expr Object
+insert :: WriteOpts -> Expr (Array Object) -> R.Table -> Expr R.WriteResponse
 insert opts
   = coerce ((R.ex R.insert) :: [ R.Attribute Static ] -> ReQL -> R.Table -> ReQL)
       $ optsToArgs opts
