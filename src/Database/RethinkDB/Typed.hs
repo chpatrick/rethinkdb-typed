@@ -5,15 +5,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Database.RethinkDB.Typed
-  ( R.RethinkDBHandle(..)
+  ( R.RethinkDBHandle
   , R.WriteResponse(..)
   , R.Change(..)
     -- * The expression type
   , Expr(..)
-  , DatumOf(..)
+  , DatumOf
   , lit
   , (.=)
   , obj
+  , expr
     -- * Execution
   , ResultOf
   , run
@@ -78,10 +79,13 @@ module Database.RethinkDB.Typed
   , Database.RethinkDB.Typed.max
   , distinct
   , contains
+  -- * String manipulation
+  , match
   -- * Document manipulation
   , Manip
   , pluck
   , without
+  , merge
   , append
   , prepend
   , difference
@@ -109,6 +113,7 @@ module Database.RethinkDB.Typed
   , forEach
   , range
   , apply
+  , ($%)
   -- * Type assertions
   , number
   , string
@@ -127,7 +132,6 @@ import Data.String (IsString(..))
 import Data.Text (Text)
 import Data.Time
 import Prelude hiding (String)
-import qualified Prelude as P
 
 -- | A ReQL expression resulting in type 'a'.
 newtype Expr a = Expr { unExpr :: ReQL }
@@ -152,6 +156,7 @@ type instance DatumOf Text = String
 type instance DatumOf String = String
 type instance DatumOf Bool = Bool
 type instance DatumOf (Expr a) = DatumOf a
+type instance DatumOf Binary = Binary
 
 -- | Convert a suitable data structure (possibly containing `Expr`s) into an `Expr`.
 expr :: R.Expr a => a -> Expr (DatumOf a)
@@ -182,6 +187,7 @@ type instance ResultOf String = String
 type instance ResultOf Time = Time
 type instance ResultOf ( a, b ) = Object
 type instance ResultOf R.WriteResponse = R.WriteResponse
+type instance ResultOf Binary = Binary
 
 run :: forall a. R.Result (ResultOf a) => R.RethinkDBHandle -> Expr a -> IO (ResultOf a)
 run = coerce (R.run :: R.RethinkDBHandle -> ReQL -> IO (ResultOf a))
@@ -214,6 +220,7 @@ type Object = R.Object
 type Number = Double
 type Time = ZonedTime
 type String = Text
+type Binary = ByteString
 
 -- Specialize the type of a unary ReQL function.
 spec1 :: (ReQL -> ReQL) -> Expr a -> Expr b
