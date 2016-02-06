@@ -113,6 +113,7 @@ module Database.RethinkDB.Typed
   -- * Control structures
   , forEach
   , range
+  , Database.RethinkDB.Typed.error
   , apply
   , ($%)
   -- * Type assertions
@@ -570,6 +571,9 @@ forEach = coerce (R.forEach :: (ReQL -> ReQL) -> ReQL -> ReQL)
 
 range :: Expr Number -> Expr (Stream Number)
 range = spec1 R.range
+
+error :: Expr String -> Expr a
+error = spec1 R.error
 
 -- Type assertions (useful to reduce ambiguity)
 number :: Expr Number -> Expr Number
