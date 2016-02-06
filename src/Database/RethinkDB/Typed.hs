@@ -8,6 +8,7 @@ module Database.RethinkDB.Typed
   ( R.RethinkDBHandle
   , R.WriteResponse(..)
   , R.Change(..)
+  , R.Database(..)
     -- * The expression type
   , Expr(..)
   , DatumOf
